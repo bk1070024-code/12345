@@ -1,0 +1,661 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RPG 猜拳冒險：終極大對決</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Canvas Confetti for Victory Screen -->
+    <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+    <!-- Google Fonts: Press Start 2P & Noto Sans TC -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;700;900&family=Press+Start+2P&display=swap" rel="stylesheet">
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        retro: {
+                            bg: '#0f0d1b',
+                            card: '#1a162b',
+                            border: '#3b2d54',
+                            accent: '#ff2a85',
+                            gold: '#ffd700',
+                            cyan: '#00f3ff',
+                            purple: '#9d4edd'
+                        }
+                    },
+                    fontFamily: {
+                        pixel: ['"Press Start 2P"', 'monospace'],
+                        sans: ['"Noto Sans TC"', 'sans-serif']
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        body {
+            background-color: #0d0b18;
+            background-image: 
+                radial-gradient(circle at 50% 20%, rgba(157, 78, 221, 0.15) 0%, transparent 50%),
+                radial-gradient(circle at 80% 80%, rgba(0, 243, 255, 0.1) 0%, transparent 40%);
+            color: #e2e8f0;
+            font-family: 'Noto Sans TC', sans-serif;
+            min-height: 100vh;
+            overflow-x: hidden;
+        }
+
+        /* Scanline retro overlay effect */
+        .scanlines {
+            position: fixed;
+            top: 0; left: 0; width: 100%; height: 100%;
+            pointer-events: none;
+            background: linear-gradient(
+                rgba(18, 16, 16, 0) 50%, 
+                rgba(0, 0, 0, 0.25) 50%
+            );
+            background-size: 100% 4px;
+            z-index: 50;
+            opacity: 0.6;
+        }
+
+        /* Glowing text & borders */
+        .glow-title {
+            text-shadow: 0 0 10px #ff2a85, 0 0 20px #ff2a85;
+        }
+        .glow-cyan {
+            text-shadow: 0 0 10px #00f3ff;
+        }
+        .glow-gold {
+            text-shadow: 0 0 10px #ffd700;
+        }
+        .box-glow {
+            box-shadow: 0 0 15px rgba(157, 78, 221, 0.3);
+        }
+        .box-glow-cyan {
+            box-shadow: 0 0 15px rgba(0, 243, 255, 0.3);
+        }
+
+        /* Custom Animations */
+        @keyframes shake {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            20% { transform: translateY(-10px) rotate(-5deg); }
+            40% { transform: translateY(10px) rotate(5deg); }
+            60% { transform: translateY(-5px) rotate(-3deg); }
+            80% { transform: translateY(5px) rotate(3deg); }
+        }
+        .animate-shake {
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes pulse-glow {
+            0%, 100% { box-shadow: 0 0 15px rgba(255, 42, 133, 0.4); }
+            50% { box-shadow: 0 0 30px rgba(255, 42, 133, 0.8); }
+        }
+        .pulse-btn {
+            animation: pulse-glow 2s infinite;
+        }
+
+        /* Custom scrollbar for log */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #110e1c;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #3b2d54;
+            border-radius: 3px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #ff2a85;
+        }
+    </style>
+</head>
+<body class="flex flex-col min-h-screen relative">
+    <div class="scanlines"></div>
+
+    <!-- Audio Control Header Button -->
+    <div class="fixed top-4 right-4 z-40">
+        <button id="soundToggle" class="bg-retro-card hover:bg-retro-border text-retro-cyan border border-retro-cyan p-3 rounded-full shadow-lg transition flex items-center justify-center w-12 h-12">
+            <i id="soundIcon" class="fas fa-volume-up text-lg"></i>
+        </button>
+    </div>
+
+    <div class="container mx-auto px-4 py-8 max-w-4xl flex-grow flex flex-col justify-center relative z-10">
+        
+        <!-- Header / Logo -->
+        <header class="text-center mb-6">
+            <h1 class="font-pixel text-2xl md:text-4xl text-retro-accent glow-title mb-2 tracking-wider">
+                ✊ ⚔️ ✌️ ⚔️ ✋
+            </h1>
+            <h2 class="text-2xl md:text-3xl font-black tracking-widest text-transparent bg-clip-text bg-gradient-to-r from-retro-cyan via-retro-purple to-retro-accent">
+                RPG 猜拳地下城對決
+            </h2>
+        </header>
+
+        <!-- ==================== SCREEN 1: ADVENTURER REGISTRATION ==================== -->
+        <div id="registrationScreen" class="bg-retro-card border-2 border-retro-border rounded-2xl p-6 md:p-8 box-glow transition-all">
+            <div class="text-center mb-6">
+                <span class="bg-retro-purple/30 text-retro-purple border border-retro-purple/50 px-3 py-1 rounded-full text-sm font-bold tracking-wider">
+                    <i class="fas fa-scroll mr-1"></i> 冒險者登入
+                </span>
+                <p class="text-gray-400 mt-2 text-sm">輸入你的冒險者稱號並選擇你的開局神裝！</p>
+            </div>
+
+            <form id="registrationForm" class="space-y-6" onsubmit="event.preventDefault(); startAdventure();">
+                <!-- Adventurer Name Input -->
+                <div>
+                    <label class="block text-sm font-bold text-retro-cyan mb-2">
+                        <i class="fas fa-user-shield mr-1"></i> 冒險者名字：
+                    </label>
+                    <input type="text" id="playerName" required
+                        class="w-full bg-retro-bg border-2 border-retro-border rounded-xl px-4 py-3 text-white focus:outline-none focus:border-retro-cyan transition text-lg"
+                        placeholder="請輸入名字..." value="勇者小明">
+                </div>
+
+                <!-- Weapon Selection -->
+                <div>
+                    <label class="block text-sm font-bold text-retro-gold mb-2">
+                        <i class="fas fa-wand-magic-sparkles mr-1"></i> 選擇裝備武器：
+                    </label>
+                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3" id="weaponGrid">
+                        <!-- Weapons dynamically or hardcoded -->
+                        <button type="button" onclick="selectWeapon('黃金鍵盤', '⌨️', this)" 
+                            class="weapon-btn bg-retro-bg border-2 border-retro-gold rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:border-retro-gold transition active">
+                            <span class="text-3xl">⌨️</span>
+                            <span class="text-xs font-bold text-retro-gold">黃金鍵盤</span>
+                        </button>
+
+                        <button type="button" onclick="selectWeapon('魔法魔杖', '🪄', this)" 
+                            class="weapon-btn bg-retro-bg border-2 border-retro-border rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:border-retro-gold transition">
+                            <span class="text-3xl">🪄</span>
+                            <span class="text-xs font-bold text-gray-300">魔法魔杖</span>
+                        </button>
+
+                        <button type="button" onclick="selectWeapon('暗黑滑鼠', '🖱️', this)" 
+                            class="weapon-btn bg-retro-bg border-2 border-retro-border rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:border-retro-gold transition">
+                            <span class="text-3xl">🖱️</span>
+                            <span class="text-xs font-bold text-gray-300">暗黑滑鼠</span>
+                        </button>
+
+                        <button type="button" onclick="selectWeapon('聖光咖啡杯', '☕', this)" 
+                            class="weapon-btn bg-retro-bg border-2 border-retro-border rounded-xl p-3 flex flex-col items-center justify-center gap-1 hover:border-retro-gold transition">
+                            <span class="text-3xl">☕</span>
+                            <span class="text-xs font-bold text-gray-300">聖光咖啡杯</span>
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Start Adventure Button -->
+                <button type="submit" 
+                    class="w-full bg-gradient-to-r from-retro-accent to-retro-purple hover:from-pink-600 hover:to-purple-700 text-white font-black py-4 rounded-xl text-lg tracking-wider transition transform hover:-translate-y-0.5 active:translate-y-0 pulse-btn flex items-center justify-center gap-2">
+                    <i class="fas fa-play"></i> 開啟冒險挑戰
+                </button>
+            </form>
+        </div>
+
+
+        <!-- ==================== SCREEN 2: BATTLE ARENA ==================== -->
+        <div id="battleArenaScreen" class="hidden space-y-6">
+            
+            <!-- System Broadcast Banner -->
+            <div class="bg-gradient-to-r from-retro-purple/30 via-retro-card to-retro-purple/30 border border-retro-purple rounded-xl p-3 text-center shadow-lg">
+                <span class="text-retro-gold font-bold text-xs uppercase tracking-widest block mb-1">=== 📢 系統廣播 ===</span>
+                <p id="systemBroadcast" class="text-sm md:text-base text-gray-200">
+                    歡迎勇敢的冒險者【<span class="text-retro-cyan font-bold">勇者小明</span>】！你已經裝備了【<span class="text-retro-gold font-bold">黃金鍵盤</span>】！
+                </p>
+            </div>
+
+            <!-- Scoreboard & Round Indicator -->
+            <div class="bg-retro-card border-2 border-retro-border rounded-2xl p-4 md:p-6 box-glow-cyan flex flex-col md:flex-row items-center justify-between gap-4">
+                <!-- Player Profile -->
+                <div class="flex items-center gap-3 w-full md:w-auto">
+                    <div id="playerAvatar" class="w-12 h-12 rounded-xl bg-retro-purple/40 border-2 border-retro-cyan flex items-center justify-center text-2xl">
+                        ⌨️
+                    </div>
+                    <div>
+                        <div id="displayName" class="font-bold text-retro-cyan">勇者小明</div>
+                        <div class="flex items-center text-xs text-gray-400 gap-1">
+                            <span>勝場:</span>
+                            <span id="playerWinsCount" class="font-pixel text-retro-gold text-lg">0</span>
+                            <span>/ 3</span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Round Counter -->
+                <div class="bg-retro-bg border border-retro-border px-4 py-2 rounded-xl text-center">
+                    <span class="text-xs text-gray-400 block">CURRENT ROUND</span>
+                    <span id="roundNumber" class="font-pixel text-retro-accent text-xl">第 1 回合</span>
+                </div>
+
+                <!-- Computer Profile -->
+                <div class="flex items-center gap-3 justify-end w-full md:w-auto">
+                    <div class="text-right">
+                        <div class="font-bold text-retro-accent">🤖 猜拳魔王</div>
+                        <div class="flex items-center justify-end text-xs text-gray-400 gap-1">
+                            <span>勝場:</span>
+                            <span id="computerWinsCount" class="font-pixel text-retro-accent text-lg">0</span>
+                            <span>/ 3</span>
+                        </div>
+                    </div>
+                    <div class="w-12 h-12 rounded-xl bg-retro-accent/20 border-2 border-retro-accent flex items-center justify-center text-2xl">
+                        🤖
+                    </div>
+                </div>
+            </div>
+
+            <!-- Battle VS Stage -->
+            <div class="bg-retro-card border-2 border-retro-border rounded-2xl p-6 text-center relative overflow-hidden min-h-[220px] flex flex-col justify-center items-center">
+                <!-- Rules Note -->
+                <div class="text-xs text-gray-400 mb-4 bg-retro-bg/60 px-3 py-1 rounded-full border border-retro-border">
+                    <i class="fas fa-info-circle mr-1"></i> 規則：先獲得 3 勝的一方獲得最終勝利！
+                </div>
+
+                <!-- Hands Duel Display -->
+                <div id="duelStage" class="flex items-center justify-center gap-6 md:gap-16 w-full my-2">
+                    <!-- Player Choice -->
+                    <div class="text-center">
+                        <div id="playerHandDisplay" class="w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-retro-bg border-2 border-retro-cyan flex items-center justify-center text-5xl md:text-6xl transition transform shadow-lg">
+                            ❓
+                        </div>
+                        <span class="text-xs font-bold text-retro-cyan mt-2 block">你的出拳</span>
+                    </div>
+
+                    <!-- VS Badge -->
+                    <div class="font-pixel text-xl md:text-3xl text-retro-accent animate-pulse">
+                        VS
+                    </div>
+
+                    <!-- Computer Choice -->
+                    <div class="text-center">
+                        <div id="computerHandDisplay" class="w-24 h-24 md:w-28 md:h-28 rounded-2xl bg-retro-bg border-2 border-retro-accent flex items-center justify-center text-5xl md:text-6xl transition transform shadow-lg">
+                            ❓
+                        </div>
+                        <span class="text-xs font-bold text-retro-accent mt-2 block">電腦出拳</span>
+                    </div>
+                </div>
+
+                <!-- Round Result Status Banner -->
+                <div id="roundResultBanner" class="mt-3 font-bold text-base md:text-lg min-h-[28px] text-retro-gold">
+                    請點擊下方出拳選擇！
+                </div>
+            </div>
+
+            <!-- Interactive Hand Gesture Action Buttons -->
+            <div class="bg-retro-card border-2 border-retro-border rounded-2xl p-4">
+                <div class="text-center text-xs font-bold text-gray-400 mb-3">請選擇你的招式出拳：</div>
+                <div class="grid grid-cols-3 gap-3 md:gap-4">
+                    <button onclick="playRound('剪刀')" class="action-btn bg-retro-bg hover:bg-retro-purple/30 border-2 border-retro-border hover:border-retro-cyan rounded-xl p-4 flex flex-col items-center gap-2 transition group active:scale-95">
+                        <span class="text-4xl group-hover:scale-110 transition">✌️</span>
+                        <span class="font-bold text-sm text-gray-200 group-hover:text-retro-cyan">剪刀</span>
+                    </button>
+
+                    <button onclick="playRound('石頭')" class="action-btn bg-retro-bg hover:bg-retro-purple/30 border-2 border-retro-border hover:border-retro-cyan rounded-xl p-4 flex flex-col items-center gap-2 transition group active:scale-95">
+                        <span class="text-4xl group-hover:scale-110 transition">✊</span>
+                        <span class="font-bold text-sm text-gray-200 group-hover:text-retro-cyan">石頭</span>
+                    </button>
+
+                    <button onclick="playRound('布')" class="action-btn bg-retro-bg hover:bg-retro-purple/30 border-2 border-retro-border hover:border-retro-cyan rounded-xl p-4 flex flex-col items-center gap-2 transition group active:scale-95">
+                        <span class="text-4xl group-hover:scale-110 transition">✋</span>
+                        <span class="font-bold text-sm text-gray-200 group-hover:text-retro-cyan">布</span>
+                    </button>
+                </div>
+            </div>
+
+            <!-- Battle Log Feed -->
+            <div class="bg-retro-card border-2 border-retro-border rounded-2xl p-4">
+                <div class="flex items-center justify-between mb-2 pb-2 border-b border-retro-border">
+                    <span class="text-xs font-bold text-retro-gold uppercase tracking-wider">
+                        <i class="fas fa-list-ul mr-1"></i> 戰鬥對決日誌
+                    </span>
+                    <span class="text-xs text-gray-500">History Log</span>
+                </div>
+                <div id="battleLog" class="h-32 overflow-y-auto space-y-2 pr-1 text-xs md:text-sm">
+                    <div class="text-gray-500 italic">對決紀錄將顯示於此...</div>
+                </div>
+            </div>
+
+        </div>
+
+
+        <!-- ==================== SCREEN 3: VICTORY / GAME OVER ==================== -->
+        <div id="resultScreen" class="hidden bg-retro-card border-2 border-retro-border rounded-2xl p-6 md:p-10 text-center box-glow transition-all">
+            <div id="resultIcon" class="text-6xl md:text-8xl mb-4 animate-bounce">
+                🏆
+            </div>
+            <h2 id="resultTitle" class="font-pixel text-2xl md:text-3xl text-retro-gold glow-gold mb-2">
+                最終勝利！
+            </h2>
+            <p id="resultSubtitle" class="text-gray-300 text-sm md:text-base mb-6">
+                恭喜你擊敗了電腦，成為剪刀石頭布大師！
+            </p>
+
+            <!-- Final Statistics Box -->
+            <div class="bg-retro-bg border border-retro-border rounded-xl p-4 max-w-md mx-auto mb-6 text-left space-y-2 text-sm">
+                <div class="flex justify-between border-b border-retro-border/50 pb-2">
+                    <span class="text-gray-400">冒險者：</span>
+                    <span id="summaryPlayerName" class="font-bold text-retro-cyan">勇者小明</span>
+                </div>
+                <div class="flex justify-between border-b border-retro-border/50 pb-2">
+                    <span class="text-gray-400">裝備武器：</span>
+                    <span id="summaryWeapon" class="font-bold text-retro-gold">黃金鍵盤</span>
+                </div>
+                <div class="flex justify-between border-b border-retro-border/50 pb-2">
+                    <span class="text-gray-400">總進行回合：</span>
+                    <span id="summaryTotalRounds" class="font-bold text-white">5 回合</span>
+                </div>
+                <div class="flex justify-between">
+                    <span class="text-gray-400">最終比分：</span>
+                    <span id="summaryScore" class="font-bold text-retro-accent">3 : 1</span>
+                </div>
+            </div>
+
+            <!-- Replay Button -->
+            <button onclick="resetGame()" 
+                class="bg-gradient-to-r from-retro-cyan to-retro-purple hover:from-cyan-400 hover:to-purple-600 text-slate-950 font-black px-8 py-4 rounded-xl text-lg tracking-wider transition transform hover:scale-105 active:scale-95 shadow-lg flex items-center justify-center gap-2 mx-auto">
+                <i class="fas fa-redo-alt"></i> 再次挑戰地下城
+            </button>
+        </div>
+
+    </div>
+
+    <!-- Footer -->
+    <footer class="text-center py-4 text-xs text-gray-600 relative z-10">
+        Python RPG 猜拳大對決 • Web Edition
+    </footer>
+
+    <!-- JavaScript Logic -->
+    <script>
+        // Game State Variables
+        let playerName = '勇者小明';
+        let selectedWeapon = '黃金鍵盤';
+        let selectedWeaponIcon = '⌨️';
+        let playerWins = 0;
+        let computerWins = 0;
+        let roundNum = 1;
+        let isProcessing = false;
+        let soundEnabled = true;
+
+        const options = ["剪刀", "石頭", "布"];
+        const handEmojis = {
+            "剪刀": "✌️",
+            "石頭": "✊",
+            "布": "✋"
+        };
+
+        // Web Audio API Synthesizer Sound Generator
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        let audioCtx = null;
+
+        function initAudio() {
+            if (!audioCtx) {
+                audioCtx = new AudioCtx();
+            }
+        }
+
+        function playSound(type) {
+            if (!soundEnabled) return;
+            initAudio();
+            if (!audioCtx) return;
+
+            const osc = audioCtx.createOscillator();
+            const gain = audioCtx.createGain();
+            osc.connect(gain);
+            gain.connect(audioCtx.destination);
+
+            const now = audioCtx.currentTime;
+
+            if (type === 'click') {
+                osc.type = 'sine';
+                osc.frequency.setValueAtTime(400, now);
+                osc.frequency.exponentialRampToValueAtTime(800, now + 0.05);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.05);
+                osc.start(now);
+                osc.stop(now + 0.05);
+            } else if (type === 'win') {
+                osc.type = 'triangle';
+                osc.frequency.setValueAtTime(523.25, now); // C5
+                osc.frequency.setValueAtTime(659.25, now + 0.1); // E5
+                osc.frequency.setValueAtTime(783.99, now + 0.2); // G5
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.4);
+                osc.start(now);
+                osc.stop(now + 0.4);
+            } else if (type === 'lose') {
+                osc.type = 'sawtooth';
+                osc.frequency.setValueAtTime(300, now);
+                osc.frequency.linearRampToValueAtTime(150, now + 0.3);
+                gain.gain.setValueAtTime(0.2, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.3);
+                osc.start(now);
+                osc.stop(now + 0.3);
+            } else if (type === 'draw') {
+                osc.type = 'square';
+                osc.frequency.setValueAtTime(350, now);
+                osc.frequency.setValueAtTime(350, now + 0.1);
+                gain.gain.setValueAtTime(0.1, now);
+                gain.gain.linearRampToValueAtTime(0.01, now + 0.25);
+                osc.start(now);
+                osc.stop(now + 0.25);
+            } else if (type === 'victory_fanfare') {
+                const notes = [523.25, 659.25, 783.99, 1046.50];
+                notes.forEach((freq, idx) => {
+                    const noteOsc = audioCtx.createOscillator();
+                    const noteGain = audioCtx.createGain();
+                    noteOsc.connect(noteGain);
+                    noteGain.connect(audioCtx.destination);
+                    
+                    const startTime = now + idx * 0.12;
+                    noteOsc.frequency.setValueAtTime(freq, startTime);
+                    noteGain.gain.setValueAtTime(0.25, startTime);
+                    noteGain.gain.linearRampToValueAtTime(0.01, startTime + 0.3);
+                    noteOsc.start(startTime);
+                    noteOsc.stop(startTime + 0.3);
+                });
+            }
+        }
+
+        // Sound Toggle Button
+        document.getElementById('soundToggle').addEventListener('click', () => {
+            soundEnabled = !soundEnabled;
+            const icon = document.getElementById('soundIcon');
+            if (soundEnabled) {
+                icon.className = 'fas fa-volume-up text-lg';
+                playSound('click');
+            } else {
+                icon.className = 'fas fa-volume-mute text-lg text-gray-500';
+            }
+        });
+
+        // Select Weapon Function
+        function selectWeapon(weaponName, weaponIcon, element) {
+            playSound('click');
+            selectedWeapon = weaponName;
+            selectedWeaponIcon = weaponIcon;
+
+            document.querySelectorAll('.weapon-btn').forEach(btn => {
+                btn.classList.remove('border-retro-gold', 'active');
+                btn.classList.add('border-retro-border');
+                btn.querySelector('span:last-child').classList.replace('text-retro-gold', 'text-gray-300');
+            });
+
+            element.classList.remove('border-retro-border');
+            element.classList.add('border-retro-gold', 'active');
+            element.querySelector('span:last-child').classList.replace('text-gray-300', 'text-retro-gold');
+        }
+
+        // Start Adventure
+        function startAdventure() {
+            playSound('click');
+            const inputName = document.getElementById('playerName').value.trim();
+            playerName = inputName !== '' ? inputName : '勇者小明';
+
+            // Reset Game Variables
+            playerWins = 0;
+            computerWins = 0;
+            roundNum = 1;
+
+            // Update UI Elements
+            document.getElementById('displayName').innerText = playerName;
+            document.getElementById('playerAvatar').innerText = selectedWeaponIcon;
+            document.getElementById('systemBroadcast').innerHTML = 
+                `歡迎勇敢的冒險者【<span class="text-retro-cyan font-bold">${playerName}</span>】！你已經裝備了【<span class="text-retro-gold font-bold">${selectedWeapon}</span>】！`;
+
+            updateScoreboard();
+            document.getElementById('battleLog').innerHTML = '';
+            document.getElementById('playerHandDisplay').innerText = '❓';
+            document.getElementById('computerHandDisplay').innerText = '❓';
+            document.getElementById('roundResultBanner').innerText = '請點擊下方出拳選擇！';
+
+            // Switch Screen
+            document.getElementById('registrationScreen').classList.add('hidden');
+            document.getElementById('battleArenaScreen').classList.remove('hidden');
+        }
+
+        // Update Scoreboard UI
+        function updateScoreboard() {
+            document.getElementById('playerWinsCount').innerText = playerWins;
+            document.getElementById('computerWinsCount').innerText = computerWins;
+            document.getElementById('roundNumber').innerText = `第 ${roundNum} 回合`;
+        }
+
+        // Play One Round
+        function playRound(playerChoice) {
+            if (isProcessing || playerWins >= 3 || computerWins >= 3) return;
+            isProcessing = true;
+            playSound('click');
+
+            const playerDisplay = document.getElementById('playerHandDisplay');
+            const computerDisplay = document.getElementById('computerHandDisplay');
+            const banner = document.getElementById('roundResultBanner');
+
+            // Reset Animation Class
+            playerDisplay.classList.remove('animate-shake');
+            computerDisplay.classList.remove('animate-shake');
+
+            // Shaking Effect during count
+            playerDisplay.innerText = '✊';
+            computerDisplay.innerText = '✊';
+            playerDisplay.classList.add('animate-shake');
+            computerDisplay.classList.add('animate-shake');
+
+            banner.innerText = '出拳中... ✊ ✌️ ✋';
+            banner.className = 'mt-3 font-bold text-base md:text-lg text-gray-400';
+
+            // Delay for dramatic effect
+            setTimeout(() => {
+                // Computer choice logic
+                const computerChoice = options[Math.floor(Math.random() * options.length)];
+
+                // Show hands
+                playerDisplay.innerText = handEmojis[playerChoice];
+                computerDisplay.innerText = handEmojis[computerChoice];
+
+                playerDisplay.classList.remove('animate-shake');
+                computerDisplay.classList.remove('animate-shake');
+
+                // Judge Win/Lose/Draw
+                let roundResult = '';
+                let logMessage = '';
+
+                if (playerChoice === computerChoice) {
+                    roundResult = '平手！沒有人得分。';
+                    banner.innerText = '⚖️ 平手！沒有人得分。';
+                    banner.className = 'mt-3 font-bold text-base md:text-lg text-gray-300';
+                    playSound('draw');
+                    logMessage = `<div class="p-2 bg-retro-bg/40 border-l-2 border-gray-500 rounded"><span class="text-gray-400">第 ${roundNum} 回合：</span>你出了 [${playerChoice}] ，電腦出了 [${computerChoice}] ➔ <span class="text-gray-300 font-bold">平手</span></div>`;
+                } else if (
+                    (playerChoice === "剪刀" && computerChoice === "布") ||
+                    (playerChoice === "石頭" && computerChoice === "剪刀") ||
+                    (playerChoice === "布" && computerChoice === "石頭")
+                ) {
+                    playerWins++;
+                    roundResult = '🎉 這回合你贏了！';
+                    banner.innerText = '🎉 這回合你贏了！';
+                    banner.className = 'mt-3 font-bold text-base md:text-lg text-retro-cyan glow-cyan';
+                    playSound('win');
+                    logMessage = `<div class="p-2 bg-retro-bg/40 border-l-2 border-retro-cyan rounded"><span class="text-gray-400">第 ${roundNum} 回合：</span>你出了 [${playerChoice}] ，電腦出了 [${computerChoice}] ➔ <span class="text-retro-cyan font-bold">🎉 你獲勝！</span></div>`;
+                } else {
+                    computerWins++;
+                    roundResult = '💥 這回合電腦贏了！';
+                    banner.innerText = '💥 這回合電腦贏了！';
+                    banner.className = 'mt-3 font-bold text-base md:text-lg text-retro-accent glow-title';
+                    playSound('lose');
+                    logMessage = `<div class="p-2 bg-retro-bg/40 border-l-2 border-retro-accent rounded"><span class="text-gray-400">第 ${roundNum} 回合：</span>你出了 [${playerChoice}] ，電腦出了 [${computerChoice}] ➔ <span class="text-retro-accent font-bold">💥 電腦得分</span></div>`;
+                }
+
+                // Append to Log
+                const battleLog = document.getElementById('battleLog');
+                if (roundNum === 1 && battleLog.children[0]?.classList.contains('italic')) {
+                    battleLog.innerHTML = '';
+                }
+                battleLog.innerHTML = logMessage + battleLog.innerHTML;
+
+                roundNum++;
+                updateScoreboard();
+
+                // Check Game Over
+                if (playerWins === 3 || computerWins === 3) {
+                    setTimeout(() => {
+                        showFinalResult();
+                    }, 1000);
+                } else {
+                    isProcessing = false;
+                }
+
+            }, 600);
+        }
+
+        // Show Final Victory / Defeat Screen
+        function showFinalResult() {
+            document.getElementById('battleArenaScreen').classList.add('hidden');
+            document.getElementById('resultScreen').classList.remove('hidden');
+
+            document.getElementById('summaryPlayerName').innerText = playerName;
+            document.getElementById('summaryWeapon').innerText = `${selectedWeaponIcon} ${selectedWeapon}`;
+            document.getElementById('summaryTotalRounds').innerText = `${roundNum - 1} 回合`;
+            document.getElementById('summaryScore').innerText = `${playerWins} : ${computerWins}`;
+
+            if (playerWins === 3) {
+                playSound('victory_fanfare');
+                document.getElementById('resultIcon').innerText = '🏆';
+                document.getElementById('resultTitle').innerText = '🏆 最終大勝利！';
+                document.getElementById('resultTitle').className = 'font-pixel text-2xl md:text-3xl text-retro-gold glow-gold mb-2';
+                document.getElementById('resultSubtitle').innerText = `恭喜你以 ${playerWins} : ${computerWins} 擊敗了電腦，成為剪刀石頭布大師！`;
+
+                // Fire Confetti Effect
+                if (typeof confetti === 'function') {
+                    confetti({
+                        particleCount: 100,
+                        spread: 70,
+                        origin: { y: 0.6 }
+                    });
+                }
+            } else {
+                playSound('lose');
+                document.getElementById('resultIcon').innerText = '💀';
+                document.getElementById('resultTitle').innerText = '💻 挑戰失敗...';
+                document.getElementById('resultTitle').className = 'font-pixel text-2xl md:text-3xl text-retro-accent glow-title mb-2';
+                document.getElementById('resultSubtitle').innerText = `很可惜，電腦以 ${computerWins} : ${playerWins} 獲得了最終勝利，下次再來挑戰吧！`;
+            }
+            isProcessing = false;
+        }
+
+        // Reset & Replay Game
+        function resetGame() {
+            playSound('click');
+            document.getElementById('resultScreen').classList.add('hidden');
+            document.getElementById('registrationScreen').classList.remove('hidden');
+        }
+    </script>
+</body>
+</html>
